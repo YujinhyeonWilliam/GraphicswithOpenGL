@@ -19,4 +19,7 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="res\shaders\Basic.shader" />
+  </ItemGroup>
 </Project>
