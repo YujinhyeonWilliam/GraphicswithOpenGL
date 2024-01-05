@@ -17,6 +17,30 @@ struct ShaderProgramSource
 	std::string FragSource;
 };
 
+//__debugbreak()는 MSVC에만 사용 가능
+#define ASSERT(x) if ((!(x))) __debugbreak(); 
+#define GLCall(x) GLClearError();\
+				  x;\
+				  ASSERT(GLLogCall(#x, __FILE__, __LINE__))
+
+//glGetError는 에러를 하나씩만 반환하기 때문에, 한 번 확인에 모든 오류를 뽑아내는 것이 필요함
+static void GLClearError()
+{
+	while (glGetError() != GL_NO_ERROR); // GL_NO_ERROR == 0
+}
+
+static bool GLLogCall(const char* function, const char* file, int line)
+{
+	while (GLenum error = glGetError())
+	{
+		std::cout << "[OpenGL Error] (" << error << ") : " << function <<
+			" " << file << " in line " << line << std::endl;
+		return false;
+	}
+	return true;
+}
+
+
 #pragma region State machine vs OOP
 
 // OpenGL은 State Machine과 비슷함.일반적인 객체 지향 프로그램의 설계와는 다르게,
@@ -164,10 +188,10 @@ int main(void)
 
 	// :: 정점의 위치들 (vertex positions)
 	float position[] = {
-		-0.5f, -0.5f, 0.0f, // 0 v
-		 0.5f, -0.5f, 0.0f, // 1 v
-		 0.5f,  0.5f, 0.0f, // 2 v
-		-0.5f,  0.5f, 0.0f // 3 v
+		-0.5f, -0.5f,  0.0f, // 0 v
+		 0.5f, -0.5f,  0.0f, // 1 v
+		 0.5f,  0.5f,  0.0f, // 2 v
+		-0.5f,  0.5f,  0.0f // 3 v
 	};
 
 	// :: index buffer
@@ -205,15 +229,22 @@ int main(void)
 
 	ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
 	unsigned int shader = CreateShader(source.VertexSource, source.FragSource); // shader프로그램의 Index
-	glUseProgram(shader); //StateMachine이기 때문에 UseProgram함수를 통해 어떤 인덱스의 셰이더 프로그램을 활성화시킬지[active(bind)] 알려줘야한다.
+	GLCall(glUseProgram(shader)); //StateMachine이기 때문에 UseProgram함수를 통해 어떤 인덱스의 셰이더 프로그램을 활성화시킬지[active(bind)] 알려줘야한다.
 	
+
+	// :: 셰이더 내 Uniform 변수에 값을 넣어줌
+	int location = glGetUniformLocation(shader, "u_Color");
+	ASSERT(location != -1);
+	glUniform4f(location, 0.2f, 0.3f, 0.8f, 1.0f);
+
+
 	while (!glfwWindowShouldClose(window))
 	{
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		// glDrawArrays(GL_TRIANGLES, 0, 3);  !이제 인덱스 버퍼를 이용하기 때문에 drawcall 함수를 아래거로 써야한다.!
 
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+		GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
 		glfwSwapBuffers(window);
 
