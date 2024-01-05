@@ -9,13 +9,8 @@
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
 #include "VertexArray.h"
-
-struct ShaderProgramSource
-{
-	std::string VertexSource;
-	std::string FragSource;
-};
-
+#include "Shader.h"
+#include "VertexBufferLayout.h"
 
 #pragma region State machine vs OOP
 
@@ -36,101 +31,6 @@ struct ShaderProgramSource
 #pragma endregion
 
 //셰이더 파일 파싱 함수
-static ShaderProgramSource ParseShader(const std::string& filepath)
-{
-	std::ifstream stream(filepath);
-
-
-	enum class ShaderType
-	{
-		NONE = -1, VERTEX = 0, FRAGMENT = 1
-	};
-
-	std::string line;
-	std::stringstream ss[2];
-	ShaderType type = ShaderType::NONE;
-	while (getline(stream, line))
-	{
-		if (line.find("#shader") != std::string::npos)
-		{
-			if (line.find("vertex") != std::string::npos) //vertex 셰이더 섹션
-			{
-				type = ShaderType::VERTEX;
-			}
-			else if (line.find("fragment") != std::string::npos) //fragment 셰이더 섹션
-			{
-				type = ShaderType::FRAGMENT;
-			}
-		}
-		else
-		{
-			ss[(int)type] << line << '\n'; //코드를 stringstream에 삽입
-		}
-	}
-
-	return { ss[0].str(), ss[1].str() };
-}
-
-#pragma region Shader-related Methods
-
-//--------Shader 컴파일 함수----------//
-static unsigned int CompileShader(unsigned int type, const std::string& source)
-{
-	unsigned int id = glCreateShader(type); //셰이더 객체 생성(마찬가지)
-	const char* src = source.c_str();
-	glShaderSource(id, // 셰이더의 소스 코드 명시, 소스 코드를 명시할 셰이더 객체 id
-		1, // 몇 개의 소스 코드를 명시할 것인지
-		&src, // 실제 소스 코드가 들어있는 문자열의 주소값
-		nullptr); // 해당 문자열 전체를 사용할 경우 nullptr입력, 아니라면 길이 명시
-	glCompileShader(id); // id에 해당하는 셰이더 컴파일
-
-#pragma region Error Handling
-
-	// Error Handling(없으면 셰이더 프로그래밍할때 괴롭다...)
-	int result;
-	glGetShaderiv(id, GL_COMPILE_STATUS, &result); //셰이더 프로그램으로부터 컴파일 결과(log)를 얻어옴
-	if (result == GL_FALSE) //컴파일에 실패한 경우
-	{
-		int length;
-		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length); //log의 길이를 얻어옴
-		char* message = (char*)alloca(length * sizeof(char)); //stack에 동적할당
-		glGetShaderInfoLog(id, length, &length, message); //길이만큼 log를 얻어옴
-		std::cout << "셰이더 컴파일 실패! " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << std::endl;
-		std::cout << message << std::endl;
-		glDeleteShader(id); //컴파일 실패한 경우 셰이더 삭제
-		return 0;
-	}
-
-#pragma endregion
-
-	return id;
-}
-
-//--------Shader 프로그램 생성, 컴파일, 링크----------//
-static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragShader)
-{
-	unsigned int program = glCreateProgram(); //셰이더 프로그램 객체 생성(int에 저장되는 것은 id)
-	unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
-	unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragShader);
-
-	// 셰이더 프로그램에는 보통 크게 (1) 버텍스프로그램 (2) 프래그먼트 프로그램이 있다.
-	// float데이터를 갖고 vertex Program에 넘겨 정점의 위치를 알려주고 그 이후 fragmentShader에 넘겨주는 것인데 그 안에서 어떻게 그려줄지를 계산하게 된다.
-	// 위 두 셰이더 프로그램 (vs, fs)은 꼭 필요하다.
-
-	//컴파일된 셰이더 코드를 program에 추가하고 링크
-	glAttachShader(program, vs);
-	glAttachShader(program, fs);
-	glLinkProgram(program);
-	glValidateProgram(program);
-
-	//셰이더 프로그램을 생성했으므로 vs, fs 개별 프로그램은 더이상 필요 없음
-	glDeleteShader(vs);
-	glDeleteShader(fs);
-
-	return program;
-}
-
-#pragma endregion
 
 int main(void)
 {
@@ -204,28 +104,27 @@ int main(void)
 
 		IndexBuffer ib{ indices, 6 };
 
+		Shader shader{ "res/shaders/Basic.shader" };
+		shader.Bind();
 
-		ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
-		unsigned int shader = CreateShader(source.VertexSource, source.FragSource); // shader프로그램의 Index
-		GLCall(glUseProgram(shader)); //StateMachine이기 때문에 UseProgram함수를 통해 어떤 인덱스의 셰이더 프로그램을 활성화시킬지[active(bind)] 알려줘야한다.
+		va.Unbind();
+		vb.UnBind();
+		ib.UnBind();
+		shader.Unbind();
 
-		glBindVertexArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-		glUseProgram(0);
+		Renderer renderer;
 
 		while (!glfwWindowShouldClose(window))
 		{
-			GLCall(glClear(GL_COLOR_BUFFER_BIT));
+			renderer.Clear();
 
-			GLCall(glUseProgram(shader));
 			va.Bind();
-			GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+			shader.Bind();
+			renderer.Draw(va, ib, shader);
 
 			glfwSwapBuffers(window);
 			glfwPollEvents();
 		}
-		GLCall(glDeleteProgram(shader));
 	}
 
 	glfwTerminate();
