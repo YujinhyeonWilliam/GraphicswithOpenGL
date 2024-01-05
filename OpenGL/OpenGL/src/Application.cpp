@@ -8,6 +8,7 @@
 #include "Renderer.h"
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
+#include "VertexArray.h"
 
 struct ShaderProgramSource
 {
@@ -171,10 +172,10 @@ int main(void)
 
 		// :: 정점의 위치들 (vertex positions)
 		float position[] = {
-			-0.5f, -0.5f,  0.0f, // 0 v
-			 0.5f, -0.5f,  0.0f, // 1 v
-			 0.5f,  0.5f,  0.0f, // 2 v
-			-0.5f,  0.5f,  0.0f // 3 v
+			-0.5f, -0.5f,  0.0f, 1.0f, 0.0f, 0.0f,// 0 Vertex Pos, Vertex Color
+			 0.5f, -0.5f,  0.0f, 0.0f, 1.0f, 0.0f,// 1 " "
+			 0.5f,  0.5f,  0.0f, 0.0f, 0.0f, 1.0f,// 2 " "
+			-0.5f,  0.5f,  0.0f, 1.0f, 0.0f, 1.0f,// 3 " "
 		};
 
 		// :: index buffer
@@ -184,20 +185,22 @@ int main(void)
 			2, 3, 0  // t2
 		};
 
-		unsigned int vao;
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
+		VertexArray va;
+		VertexBuffer vb{ position, 4 * 6 * sizeof(float) };
+		
+		VertexBufferLayout layout;
+		layout.Push<float>(3);
+		layout.Push<float>(3);
 
-		VertexBuffer vb{ position, 4 * 3 * sizeof(float) };
+		va.AddBuffer(vb, layout);
 
-		// 데이터 해석 방법
+		// 데이터 해석 방법 (Vertex Position)
 		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0,
-			3, // 하나의 vertex에 몇 개의 데이터를 넘기는지 
-			GL_FLOAT, // 데이터 타입
-			GL_FALSE, // 정규화가 필요한가 
-			sizeof(float) * 3, // 사이즈
-			0); // offset
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, 0);
+
+		// Vertex Normal
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 6, (void*)(3 * sizeof(float)));
 
 		IndexBuffer ib{ indices, 6 };
 
@@ -205,12 +208,6 @@ int main(void)
 		ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
 		unsigned int shader = CreateShader(source.VertexSource, source.FragSource); // shader프로그램의 Index
 		GLCall(glUseProgram(shader)); //StateMachine이기 때문에 UseProgram함수를 통해 어떤 인덱스의 셰이더 프로그램을 활성화시킬지[active(bind)] 알려줘야한다.
-
-
-		// :: 셰이더 내 Uniform 변수에 값을 넣어줌
-		int location = glGetUniformLocation(shader, "u_Color");
-		ASSERT(location != -1);
-		GLCall(glUniform4f(location, 0.2f, 0.3f, 0.8f, 1.0f));
 
 		glBindVertexArray(0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -222,7 +219,7 @@ int main(void)
 			GLCall(glClear(GL_COLOR_BUFFER_BIT));
 
 			GLCall(glUseProgram(shader));
-			GLCall(glBindVertexArray(vao));
+			va.Bind();
 			GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
 
 			glfwSwapBuffers(window);
