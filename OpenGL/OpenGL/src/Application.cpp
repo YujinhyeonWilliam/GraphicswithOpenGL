@@ -1,9 +1,3 @@
-//http://glew.sourceforge.net/
-//사이트에서 GLEW 바이너리 버전다운로드. 필요 라이브러리 dependencies에 복사 후 설정
-//http://glew.sourceforge.net/basic.html
-//아래 예제 코드실행 확인 
-
-//GLEW_STATIC Define 필요
 #include <GL/glew.h> //glfw보다 먼저 include해야 함
 #include <GLFW/glfw3.h>
 #include <iostream>
@@ -11,34 +5,15 @@
 #include <string>
 #include <sstream>
 
+#include "Renderer.h"
+#include "VertexBuffer.h"
+#include "IndexBuffer.h"
+
 struct ShaderProgramSource
 {
 	std::string VertexSource;
 	std::string FragSource;
 };
-
-//__debugbreak()는 MSVC에만 사용 가능
-#define ASSERT(x) if ((!(x))) __debugbreak(); 
-#define GLCall(x) GLClearError();\
-				  x;\
-				  ASSERT(GLLogCall(#x, __FILE__, __LINE__))
-
-//glGetError는 에러를 하나씩만 반환하기 때문에, 한 번 확인에 모든 오류를 뽑아내는 것이 필요함
-static void GLClearError()
-{
-	while (glGetError() != GL_NO_ERROR); // GL_NO_ERROR == 0
-}
-
-static bool GLLogCall(const char* function, const char* file, int line)
-{
-	while (GLenum error = glGetError())
-	{
-		std::cout << "[OpenGL Error] (" << error << ") : " << function <<
-			" " << file << " in line " << line << std::endl;
-		return false;
-	}
-	return true;
-}
 
 
 #pragma region State machine vs OOP
@@ -172,6 +147,12 @@ int main(void)
 		return -1;
 	}
 
+	#pragma region OPENGL 3.3 Apply
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+	#pragma endregion
+
 	/* Make the window's context current */
 	glfwMakeContextCurrent(window);
 
@@ -183,75 +164,73 @@ int main(void)
 
 	std::cout << glGetString(GL_VERSION) << std::endl; //내 플랫폼의 GL_Version 출력해보기
 
-	// :: 백스페이스 컬링
-	glEnable(GL_CULL_FACE);
-
-	// :: 정점의 위치들 (vertex positions)
-	float position[] = {
-		-0.5f, -0.5f,  0.0f, // 0 v
-		 0.5f, -0.5f,  0.0f, // 1 v
-		 0.5f,  0.5f,  0.0f, // 2 v
-		-0.5f,  0.5f,  0.0f // 3 v
-	};
-
-	// :: index buffer
-	unsigned int indices[] =
+	// ▼ 지역 스코프 두는 이유가 Stack에 객체 만들어놨으니 소멸자 알아서 잘 호출되게끔 할려고함
 	{
-		0, 1, 2, // t1
-		2, 3, 0  // t2
-	};
+		// :: 백스페이스 컬링
+		glEnable(GL_CULL_FACE);
 
-	// :: CPU에서 GPU로 정보를 전달하기 위해서 버퍼라는 개체를 만들어 사용한다.
-	unsigned int bufferID;
-	glGenBuffers(1, &bufferID); 
-	glBindBuffer(GL_ARRAY_BUFFER, bufferID); 									
-	glBufferData(GL_ARRAY_BUFFER, 
-				 12 * sizeof(float), 
-				 position, 
-				 GL_STATIC_DRAW); 
+		// :: 정점의 위치들 (vertex positions)
+		float position[] = {
+			-0.5f, -0.5f,  0.0f, // 0 v
+			 0.5f, -0.5f,  0.0f, // 1 v
+			 0.5f,  0.5f,  0.0f, // 2 v
+			-0.5f,  0.5f,  0.0f // 3 v
+		};
 
-	unsigned int ibo; // Index Buffer Object 
-	glGenBuffers(1, &ibo); // gpu 사이드에다가 버퍼를 생성해주고 그 버퍼에 ibo 주소값을 넘겨 저장한다.
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo); // 위에서 gen해줬던 버퍼를 activate해준다. 
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-		6 * sizeof(unsigned int),
-		indices,
-		GL_STATIC_DRAW); // 버퍼 데이터를 통해서 데이터를 어떻게 읽어야하는지 알려준다.
+		// :: index buffer
+		unsigned int indices[] =
+		{
+			0, 1, 2, // t1
+			2, 3, 0  // t2
+		};
 
-	// 데이터 해석 방법
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 
-						  3, // 하나의 vertex에 몇 개의 데이터를 넘기는지 
-						  GL_FLOAT, // 데이터 타입
-						  GL_FALSE, // 정규화가 필요한가 
-						  sizeof(float) * 3, // 사이즈
-						  0); // offset
+		unsigned int vao;
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
 
-	ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
-	unsigned int shader = CreateShader(source.VertexSource, source.FragSource); // shader프로그램의 Index
-	GLCall(glUseProgram(shader)); //StateMachine이기 때문에 UseProgram함수를 통해 어떤 인덱스의 셰이더 프로그램을 활성화시킬지[active(bind)] 알려줘야한다.
-	
+		VertexBuffer vb{ position, 4 * 3 * sizeof(float) };
 
-	// :: 셰이더 내 Uniform 변수에 값을 넣어줌
-	int location = glGetUniformLocation(shader, "u_Color");
-	ASSERT(location != -1);
-	glUniform4f(location, 0.2f, 0.3f, 0.8f, 1.0f);
+		// 데이터 해석 방법
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0,
+			3, // 하나의 vertex에 몇 개의 데이터를 넘기는지 
+			GL_FLOAT, // 데이터 타입
+			GL_FALSE, // 정규화가 필요한가 
+			sizeof(float) * 3, // 사이즈
+			0); // offset
+
+		IndexBuffer ib{ indices, 6 };
 
 
-	while (!glfwWindowShouldClose(window))
-	{
-		glClear(GL_COLOR_BUFFER_BIT);
+		ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
+		unsigned int shader = CreateShader(source.VertexSource, source.FragSource); // shader프로그램의 Index
+		GLCall(glUseProgram(shader)); //StateMachine이기 때문에 UseProgram함수를 통해 어떤 인덱스의 셰이더 프로그램을 활성화시킬지[active(bind)] 알려줘야한다.
 
-		// glDrawArrays(GL_TRIANGLES, 0, 3);  !이제 인덱스 버퍼를 이용하기 때문에 drawcall 함수를 아래거로 써야한다.!
 
-		GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+		// :: 셰이더 내 Uniform 변수에 값을 넣어줌
+		int location = glGetUniformLocation(shader, "u_Color");
+		ASSERT(location != -1);
+		GLCall(glUniform4f(location, 0.2f, 0.3f, 0.8f, 1.0f));
 
-		glfwSwapBuffers(window);
+		glBindVertexArray(0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+		glUseProgram(0);
 
-		glfwPollEvents();
+		while (!glfwWindowShouldClose(window))
+		{
+			GLCall(glClear(GL_COLOR_BUFFER_BIT));
+
+			GLCall(glUseProgram(shader));
+			GLCall(glBindVertexArray(vao));
+			GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+
+			glfwSwapBuffers(window);
+			glfwPollEvents();
+		}
+		GLCall(glDeleteProgram(shader));
 	}
 
-	glDeleteProgram(shader);
 	glfwTerminate();
 	return 0;
 }
