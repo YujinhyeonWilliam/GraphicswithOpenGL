@@ -7,10 +7,14 @@
 
 #include "Renderer.h"
 #include "VertexBuffer.h"
+#include "VertexBufferLayout.h"
 #include "IndexBuffer.h"
 #include "VertexArray.h"
 #include "Shader.h"
-#include "VertexBufferLayout.h"
+#include "Texture.h"
+
+#include "glm/glm.hpp"
+#include "glm/gtx/transform.hpp"
 
 #pragma region State machine vs OOP
 
@@ -30,10 +34,24 @@
 // Draw(); //현재 처리중인 데이터(=삼각형 2)를 화면에 그림
 #pragma endregion
 
-//셰이더 파일 파싱 함수
+
+glm::mat4 GetTranslationMatrix(float tx, float ty, float tz)
+{
+	glm::mat4 TranslationMatrix{  1.0f, 0.0f, 0.0f, tx,
+								  0.0f, 1.0f, 0.0f, ty,
+								  0.0f, 0.0f, 1.0f, tz,
+								  0.0f, 0.0f, 0.0f, 1.0f };
+	return TranslationMatrix;
+}
 
 int main(void)
 {
+	glm::mat4 T = GetTranslationMatrix(1.0f, 0.0f, 0.0f);
+	glm::vec4 position = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+	glm::vec4 translatedPosition = T * position;
+
+
 	GLFWwindow* window;
 
 	/* Initialize the library */
