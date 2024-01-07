@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 #include "Renderer.h"
+#include "glm/glm.hpp"
 
 struct ShaderProgramSource
 {
@@ -30,6 +31,8 @@ public:
 	//Set Uniforms
 	void SetUniform4f(const std::string& name, float v0, float v1, float v2, float v3);
 	void SetUniform1f(const std::string& name, float value);
+	void SetUniformMat4f(const std::string& name, const glm::mat4& matrix); //4x4 matrix를 전달하기 위한 함수 추가
+
 private:
 	ShaderProgramSource ParseShader(const std::string& filepath);
 	unsigned int CompileShader(unsigned int type, const std::string& source);
