@@ -12,6 +12,7 @@
 #include "VertexArray.h"
 #include "Shader.h"
 #include "Texture.h"
+#include "Window.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtx/transform.hpp"
@@ -112,41 +113,11 @@ glm::mat4 GetRotationMatrix(float rx, float ry, float rz)
 int main(void)
 {
 
-	GLFWwindow* window;
-
-	/* Initialize the library */
-	if (!glfwInit())
-		return -1;
-
-	/* Create a windowed mode window and its OpenGL context */
-	window = glfwCreateWindow(640, 480, "OpenGL Study", NULL, NULL);
-	if (!window)
-	{
-		glfwTerminate();
-		return -1;
-	}
-
-	#pragma region OPENGL 3.3 Apply
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	#pragma endregion
-
-	/* Make the window's context current */
-	glfwMakeContextCurrent(window);
-
-	// glfwMakeContextCurrent가 호출된 후에 glewInit이 수행되어야 함
-	if (glewInit() != GLEW_OK)
-	{
-		std::cout << "Error\n";
-	}
-
-	std::cout << glGetString(GL_VERSION) << std::endl; //내 플랫폼의 GL_Version 출력해보기
+	Window mainWindow{ 800,600 };
+	mainWindow.Initialize();
 
 	// ▼ 지역 스코프 두는 이유가 Stack에 객체 만들어놨으니 소멸자 알아서 잘 호출되게끔 할려고함
 	{
-		// :: 백스페이스 컬링
-		glEnable(GL_CULL_FACE);
 
 		// :: 정점의 위치들 (vertex positions)
 		float position[] = {
@@ -164,11 +135,9 @@ int main(void)
 		};
 
 		VertexArray va;
-		VertexBuffer vb{ position, 4 * 3 * sizeof(float) };
-		
+		VertexBuffer vb{ position, 4 * 3 * sizeof(float) };	
 		VertexBufferLayout layout;
 		layout.Push<float>(3);
-
 		va.AddBuffer(vb, layout);
 
 		// 데이터 해석 방법 (Vertex Position)
@@ -214,7 +183,7 @@ int main(void)
 
 		Renderer renderer;
 
-		while (!glfwWindowShouldClose(window))
+		while (!mainWindow.GetShouldClose())
 		{
 			renderer.Clear();
 
@@ -226,12 +195,11 @@ int main(void)
 
 			renderer.Draw(va, ib, shader);
 
-			glfwSwapBuffers(window);
+			mainWindow.SwapBuffers();
 			glfwPollEvents();
 		}
 	}
 
-	glfwTerminate();
 	return 0;
 }
 
